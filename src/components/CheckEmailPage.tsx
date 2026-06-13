@@ -70,7 +70,7 @@ export default function CheckEmailPage({ email, onBack, onVerifySuccess }: Check
         type: 'signup',
         email: email,
         options: {
-          emailRedirectTo: window.location.origin
+          emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/confirm`
         }
       });
       

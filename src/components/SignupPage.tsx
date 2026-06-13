@@ -222,7 +222,7 @@ export default function SignupPage({ onSignup, onLogin, onBack }: SignupPageProp
           email: email,
           password: password,
           options: {
-            emailRedirectTo: window.location.origin,
+            emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/confirm`,
             data: {
               full_name: name,
               phone: formattedPhone,

@@ -27,6 +27,7 @@ export default defineConfig(() => {
       'process.env.NEXT_PUBLIC_SUPABASE_URL': JSON.stringify(supabaseUrl),
       'process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY': JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
       'process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY': JSON.stringify(process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY),
+      'process.env.NEXT_PUBLIC_SITE_URL': JSON.stringify(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'),
     },
     server: {
       hmr: process.env.DISABLE_HMR !== 'true',
