@@ -1,0 +1,6 @@
+{
+  "name": "TTU Market",
+  "description": "The Student Economy of Takoradi Technical University. Buy, sell, and find student services on campus.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

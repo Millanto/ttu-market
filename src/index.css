@@ -1,0 +1,110 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-glass-bg: rgba(255, 255, 255, 0.95);
+  --color-glass-border: #E5E7EB;
+  --color-glass-accent: #0F6E56;
+  --color-text-main: #0D0D0D;
+  --color-text-muted: #6B7280;
+  --color-bg-dark: #FFFFFF;
+}
+
+/* Base styles for clean premium Light theme */
+:root {
+  color-scheme: light;
+}
+
+body {
+  font-family: 'Inter', -apple-system, system-ui, sans-serif;
+  background-color: #F7F8FA; /* Secondary background: soft off white */
+  color: #0D0D0D; /* Primary text: near black */
+}
+
+/* Hide scrollbars beautifully */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+/* Redesigned Clean Premium Panels & Cards */
+.glass-panel {
+  background: #FFFFFF !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  border: 1px solid #E5E7EB !important;
+}
+
+.glass-card {
+  background: #FFFFFF !important;
+  border: 1px solid #E5E7EB !important;
+  border-radius: 20px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  transition: all 0.2s ease-in-out;
+}
+
+.glass-card:hover {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+}
+
+.glass-input {
+  background: #FFFFFF !important;
+  border: 1px solid #E5E7EB !important;
+  color: #0D0D0D !important;
+}
+
+.glass-input::placeholder {
+  color: #9CA3AF !important;
+}
+
+.glass-input:focus {
+  border-color: #0F6E56 !important;
+  background: #FFFFFF !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(15, 110, 86, 0.15) !important;
+}
+
+/* Primary Fintech Accent Button: Deep Green */
+.glass-btn-primary {
+  background: linear-gradient(135deg, #0F6E56 0%, #0b5441 100%) !important;
+  color: #ffffff !important;
+  border: none !important;
+  box-shadow: 0 4px 12px rgba(15, 110, 86, 0.18) !important;
+}
+
+.glass-btn-primary:hover {
+  background: linear-gradient(135deg, #128266 0%, #0f6e56 100%) !important;
+  box-shadow: 0 6px 16px rgba(15, 110, 86, 0.28) !important;
+  transform: translateY(-1px);
+}
+
+.glass-btn-secondary {
+  background: #FFFFFF !important;
+  border: 1px solid #E5E7EB !important;
+  color: #0D0D0D !important;
+}
+
+.glass-btn-secondary:hover {
+  background: #F7F8FA !important;
+  border-color: #D1D5DB !important;
+}
+
+.glass-badge {
+  background: #F3F4F6 !important;
+  border: 1px solid #E5E7EB !important;
+  color: #4B5563 !important;
+}
+
+.glass-badge-accent {
+  background: rgba(15, 110, 86, 0.1) !important;
+  border: 1px solid rgba(15, 110, 86, 0.2) !important;
+  color: #0F6E56 !important;
+}
+
+.hero-gradient {
+  background: linear-gradient(135deg, rgba(15, 110, 86, 0.06), rgba(15, 110, 86, 0.01)) !important;
+  border: 1px solid rgba(15, 110, 86, 0.1) !important;
+}
