@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Mail, ArrowLeft, RefreshCw, ShieldAlert, CheckCircle, Sparkles } from 'lucide-react';
+import { Mail, ArrowLeft, RefreshCw, ShieldAlert, CheckCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { DbService } from '../lib/db';
+import { sendVerificationEmail } from '../lib/sendEmailClient';
 
 interface CheckEmailPageProps {
   email: string;
@@ -12,52 +12,8 @@ interface CheckEmailPageProps {
 
 export default function CheckEmailPage({ email, onBack, onVerifySuccess }: CheckEmailPageProps) {
   const [resending, setResending] = useState(false);
-  const [verifyingBypass, setVerifyingBypass] = useState(false);
   const [sentNotice, setSentNotice] = useState('');
   const [errorNotif, setErrorNotif] = useState('');
-
-  const handleInstantBypass = async () => {
-    setVerifyingBypass(true);
-    setErrorNotif('');
-    try {
-      // 1. Mark user profile verified in the database
-      let userRecord = await DbService.syncUserSessionByEmail(email, { is_verified: true });
-      
-      // If profile row doesn't exist, create it on-the-fly and verify it immediately
-      if (!userRecord) {
-        userRecord = await DbService.createUserProfile({
-          id: `user_${Date.now()}`,
-          name: email.split('@')[0] || 'Student Partner',
-          phone: '050 ' + Math.floor(1000000 + Math.random() * 9000000).toString(),
-          email: email,
-          department: 'Computer Science',
-          year: 'Year 3',
-          profile_image: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(email.split('@')[0] || 'Student')}`,
-          is_verified: true,
-          role: 'student'
-        });
-      }
-
-      onVerifySuccess(userRecord);
-    } catch (err: any) {
-      console.warn("Bypass verification error, fallback to mock object:", err);
-      // Construct perfect student fallback object
-      const fallbackRecord = {
-        id: `user_${Date.now()}`,
-        name: email.split('@')[0] || 'Student Partner',
-        phone: '050 ' + Math.floor(1000000 + Math.random() * 9000000).toString(),
-        email: email,
-        department: 'Computer Science',
-        year: 'Year 3',
-        profile_image: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(email.split('@')[0] || 'Student')}`,
-        is_verified: true,
-        role: 'student'
-      };
-      onVerifySuccess(fallbackRecord);
-    } finally {
-      setVerifyingBypass(false);
-    }
-  };
 
   const handleResendLink = async () => {
     if (!email) return;
@@ -66,19 +22,27 @@ export default function CheckEmailPage({ email, onBack, onVerifySuccess }: Check
     setErrorNotif('');
 
     try {
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: email,
-        options: {
-          emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/confirm`
-        }
-      });
+      // 1. Resend official auth link if Supabase is active
+      try {
+        await supabase.auth.resend({
+          type: 'signup',
+          email: email,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/confirm`
+          }
+        });
+      } catch (authErr) {
+        console.warn("Supabase native email resend warning, continuing to Resend service:", authErr);
+      }
+
+      // 2. Direct instant Resend SMTP delivery
+      const confirmationUrl = `${window.location.origin}/auth/confirm?email=${encodeURIComponent(email)}`;
+      await sendVerificationEmail(email, confirmationUrl);
       
-      if (error) throw error;
       setSentNotice('We re-sent the activation link. Please check your inbox!');
     } catch (err: any) {
       console.warn("Resend email failed:", err);
-      setErrorNotif(err.message || 'Resend failed. Please make sure Supabase settings are fully configured.');
+      setErrorNotif(err.message || 'Resend failed. Please ensure your Resend setup remains valid.');
     } finally {
       setResending(false);
     }
@@ -124,6 +88,8 @@ export default function CheckEmailPage({ email, onBack, onVerifySuccess }: Check
           </p>
         </div>
 
+
+
         {sentNotice && (
           <div className="mb-4 p-3 bg-green-50 border border-green-200 text-[#0F6E56] rounded-xl text-xs font-semibold leading-normal flex items-center gap-2 text-left">
             <CheckCircle className="w-4 h-4 flex-shrink-0" />
@@ -141,26 +107,7 @@ export default function CheckEmailPage({ email, onBack, onVerifySuccess }: Check
         <div className="space-y-3">
           <button 
             type="button"
-            disabled={verifyingBypass}
-            onClick={handleInstantBypass}
-            className="w-full bg-[#10B981] text-white py-3.5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-[#059669] active:scale-95 cursor-pointer shadow-md transition-all animate-pulse"
-          >
-            {verifyingBypass ? (
-              <>
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Activating Account...</span>
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-4 h-4" />
-                <span>⚡ Instant Verify & Proceed</span>
-              </>
-            )}
-          </button>
-
-          <button 
-            type="button"
-            disabled={resending || verifyingBypass}
+            disabled={resending}
             onClick={handleResendLink}
             className="w-full bg-[#0F6E56] text-white py-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-[#0b5441] active:scale-95 cursor-pointer shadow-md transition-all"
           >
@@ -176,24 +123,11 @@ export default function CheckEmailPage({ email, onBack, onVerifySuccess }: Check
 
           <button 
             type="button"
-            disabled={verifyingBypass}
             onClick={onBack}
             className="w-full bg-slate-50 text-[#6B7280] hover:bg-slate-100 py-3 rounded-xl font-bold text-xs uppercase cursor-pointer transition-all border border-[#E5E7EB]"
           >
             Return to Login
           </button>
-        </div>
-
-        <div className="mt-6 p-4 bg-amber-50 border border-amber-200 text-amber-950 rounded-2xl text-left text-xs space-y-1.5 leading-relaxed">
-          <p className="font-semibold text-center text-amber-800 flex items-center justify-center gap-1">
-            <span>💡</span> Fast Sandbox Clearance
-          </p>
-          <p className="text-slate-600 text-[11px]">
-            Normally, SMTP authentication emails take a few moments corresponding to provider traffic. 
-          </p>
-          <p className="text-slate-600 text-[11px] font-medium">
-            To bypass any network latency or broken redirect paths, click the green <strong>"Instant Verify & Proceed"</strong> button to load your fully functional campus session in 0 seconds!
-          </p>
         </div>
       </motion.div>
     </div>

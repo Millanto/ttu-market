@@ -176,26 +176,9 @@ export default function ProfileView({
         }
       });
       handler.openIframe();
-    } catch (err) {
-      console.warn('Paystack trigger issue, depositing offline backup snapshot for grade check:', err);
-      // Fallback fallback deposit for immediate preview success
-      const updatedBalance = (user.earnedGHS || 0) + depositAmt;
-      DbService.syncUserSession(user.phone, { earned_ghs: updatedBalance }).then(() => {
-        const txn = {
-          id: `txn_${Date.now()}`,
-          user_id: user.phone,
-          amount: depositAmt,
-          type: 'deposit',
-          status: 'completed',
-          reference: `sandbox_dep_${Date.now().toString().slice(-4)}`,
-          timestamp: new Date().toISOString()
-        };
-        DbService.addManualTransaction(txn).then(() => {
-          onWalletUpdated(updatedBalance);
-          loadTransactions();
-          alert(`Sandbox simulation completed. GHS ${depositAmt.toFixed(2)} added to active escrow wallet.`);
-        });
-      });
+    } catch (err: any) {
+      console.error('Paystack initialization failure:', err);
+      alert("Paystack secure payment gateway could not be loaded. Please ensure you have configured NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY in your system environment variables and are running online.");
     }
   };
 
@@ -214,31 +197,39 @@ export default function ProfileView({
 
     setLoading(true);
     try {
-      const remainingFunds = user.earnedGHS - withdrawValue;
+      // Direct call to our secure server-side Paystack Transfer proxy
+      const response = await fetch('/api/paystack/transfer', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          amount: withdrawValue,
+          userPhone: user.phone,
+          momoNumber: momoNumber,
+          momoNetwork: momoNetwork,
+          recipientName: user.name
+        })
+      });
 
-      // 1. Deduct funds inside Database row
-      await DbService.syncUserSession(user.phone, { earned_ghs: remainingFunds });
+      const data = await response.json();
 
-      // 2. Log Transaction Row
-      const txn = {
-        id: `txn_out_${Date.now()}`,
-        user_id: user.phone,
-        amount: withdrawValue,
-        type: 'withdrawal',
-        status: 'completed',
-        reference: `momo_out_${Date.now().toString().slice(-4)}`,
-        timestamp: new Date().toISOString()
-      };
-      await DbService.addManualTransaction(txn);
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || data.details || 'Payout processing rejected by payment provider');
+      }
 
-      // 3. Dispatch Parent update
+      // Success
+      const remainingFunds = data.balance !== undefined ? data.balance : (user.earnedGHS - withdrawValue);
+
+      // Dispatch Parent update
       onWalletUpdated(remainingFunds);
       setShowWithdrawModal(false);
       setWithdrawAmt('');
-      alert(`Withdrawal of GHS ${withdrawValue.toFixed(2)} successfully broadcasted to ${momoNetwork} wallet [${momoNumber}] !`);
+      alert(data.message || `Withdrawal of GHS ${withdrawValue.toFixed(2)} completed successfully!`);
       loadTransactions();
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error('[Payout API Err]', err);
+      alert(`Escrow Payout Dispatch Failed: ${err.message || 'Could not reach server API'}`);
     } finally {
       setLoading(false);
     }

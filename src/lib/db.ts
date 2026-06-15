@@ -78,6 +78,69 @@ const saveCachedData = <T>(key: keyof typeof LOCAL_CACHE_KEYS, data: T): void =>
   }
 };
 
+// Bidirectional mapping layers to bridge client camelCase and database snake_case formats seamlessly
+export const mapService = (s: any): any => {
+  if (!s) return s;
+  return {
+    ...s,
+    sellerName: s.sellerName || s.seller_name || '',
+    sellerDept: s.sellerDept || s.seller_dept || '',
+    sellerImage: s.sellerImage || s.seller_image || '',
+    imageUrl: s.imageUrl || s.image_url || '',
+    priceType: s.priceType || s.price_type || 'fixed',
+    reviewsCount: s.reviewsCount !== undefined ? s.reviewsCount : (s.reviews_count !== undefined ? s.reviews_count : 0),
+
+    seller_name: s.seller_name || s.sellerName || '',
+    seller_dept: s.seller_dept || s.sellerDept || '',
+    seller_image: s.seller_image || s.sellerImage || '',
+    image_url: s.image_url || s.imageUrl || '',
+    price_type: s.price_type || s.priceType || 'fixed',
+    reviews_count: s.reviews_count !== undefined ? s.reviews_count : (s.reviewsCount !== undefined ? s.reviewsCount : 0),
+  };
+};
+
+export const mapUrgentJob = (j: any): any => {
+  if (!j) return j;
+  return {
+    ...j,
+    timeLeftText: j.timeLeftText || j.time_left_text || '',
+    posterName: j.posterName || j.poster_name || '',
+    posterDept: j.posterDept || j.poster_dept || '',
+    posterImage: j.posterImage || j.poster_image || '',
+    acceptedBy: j.acceptedBy || j.accepted_by || '',
+
+    time_left_text: j.time_left_text || j.timeLeftText || '',
+    poster_name: j.poster_name || j.posterName || '',
+    poster_dept: j.poster_dept || j.posterDept || '',
+    poster_image: j.poster_image || j.posterImage || '',
+    accepted_by: j.accepted_by || j.acceptedBy || '',
+  };
+};
+
+export const mapOrder = (o: any): any => {
+  if (!o) return o;
+  return {
+    ...o,
+    priceType: o.priceType || o.price_type || 'fixed',
+    sellerName: o.sellerName || o.seller_name || '',
+    buyerName: o.buyerName || o.buyer_name || '',
+    imageUrl: o.imageUrl || o.image_url || '',
+    serviceId: o.serviceId || o.service_id || '',
+    urgentNeedId: o.urgentNeedId || o.urgent_need_id || '',
+    escrowStatus: o.escrowStatus || o.escrow_status || 'holding',
+    paystackReference: o.paystackReference || o.paystack_reference || '',
+
+    price_type: o.price_type || o.priceType || 'fixed',
+    seller_name: o.seller_name || o.sellerName || '',
+    buyer_name: o.buyer_name || o.buyerName || '',
+    image_url: o.image_url || o.imageUrl || '',
+    service_id: o.service_id || o.serviceId || '',
+    urgent_need_id: o.urgent_need_id || o.urgentNeedId || '',
+    escrow_status: o.escrow_status || o.escrowStatus || 'holding',
+    paystack_reference: o.paystack_reference || o.paystackReference || '',
+  };
+};
+
 // --- DATA ACCESS LAYER ---
 
 export const DbService = {
@@ -269,9 +332,9 @@ export const DbService = {
         .order('timestamp', { ascending: false });
 
       if (error) throw error;
-      return data || [];
+      return (data || []).map(mapUrgentJob);
     } catch {
-      return getCachedData<any[]>('urgent_jobs', []);
+      return getCachedData<any[]>('urgent_jobs', []).map(mapUrgentJob);
     }
   },
 
@@ -325,9 +388,9 @@ export const DbService = {
         .order('timestamp', { ascending: false });
 
       if (error) throw error;
-      return data || [];
+      return (data || []).map(mapService);
     } catch {
-      return getCachedData<any[]>('services', []).filter(s => s.status === 'active' || s.status === undefined);
+      return getCachedData<any[]>('services', []).filter(s => s.status === 'active' || s.status === undefined).map(mapService);
     }
   },
 
@@ -339,9 +402,9 @@ export const DbService = {
         .order('timestamp', { ascending: false });
 
       if (error) throw error;
-      return data || [];
+      return (data || []).map(mapService);
     } catch {
-      return getCachedData<any[]>('services', []);
+      return getCachedData<any[]>('services', []).map(mapService);
     }
   },
 
@@ -451,10 +514,10 @@ export const DbService = {
         .order('timestamp', { ascending: false });
 
       if (error) throw error;
-      return data || [];
+      return (data || []).map(mapOrder);
     } catch {
       const cached = getCachedData<any[]>('orders', []);
-      return cached.filter(o => o.buyer_name === userName || o.seller_name === userName);
+      return cached.filter(o => o.buyer_name === userName || o.seller_name === userName).map(mapOrder);
     }
   },
 
@@ -503,6 +566,8 @@ export const DbService = {
   },
 
   async confirmEscrowRelease(orderId: string, sellerName: string, amt: number): Promise<boolean> {
+    const commission = amt * 0.08;
+    const netAmt = amt - commission;
     try {
       // 1. Release Order Escrow
       const { error } = await supabase
@@ -514,7 +579,7 @@ export const DbService = {
         .eq('id', orderId);
       if (error) throw error;
 
-      // 2. Fetch Seller Profile and add funds
+      // 2. Fetch Seller Profile and add funds (with 8% commission deducted)
       const { data: sellerData } = await supabase
         .from('users')
         .select('*')
@@ -525,7 +590,7 @@ export const DbService = {
         await supabase
           .from('users')
           .update({ 
-            earned_ghs: (sellerData.earned_ghs || 0) + amt,
+            earned_ghs: (sellerData.earned_ghs || 0) + netAmt,
             completed_jobs_count: (sellerData.completed_jobs_count || 0) + 1
           })
           .eq('phone', sellerData.phone);
@@ -540,11 +605,11 @@ export const DbService = {
         current[idx].escrow_status = 'released';
         saveCachedData('orders', current);
 
-        // Update local user Cache too
+        // Update local user Cache too with 8% commission deducted
         const cachedUsers = getCachedData<any[]>('users', []);
         const uIdx = cachedUsers.findIndex(u => u.name === sellerName);
         if (uIdx > -1) {
-          cachedUsers[uIdx].earned_ghs = (cachedUsers[uIdx].earned_ghs || 0) + amt;
+          cachedUsers[uIdx].earned_ghs = (cachedUsers[uIdx].earned_ghs || 0) + netAmt;
           cachedUsers[uIdx].completed_jobs_count = (cachedUsers[uIdx].completed_jobs_count || 0) + 1;
           saveCachedData('users', cachedUsers);
         }
@@ -588,9 +653,9 @@ export const DbService = {
         .select('*')
         .order('timestamp', { ascending: false });
       if (error) throw error;
-      return data || [];
+      return (data || []).map(mapOrder);
     } catch {
-      return getCachedData<any[]>('orders', []);
+      return getCachedData<any[]>('orders', []).map(mapOrder);
     }
   },
 

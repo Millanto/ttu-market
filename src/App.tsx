@@ -61,10 +61,28 @@ export const getBetterProfileImage = (remoteImage: string | undefined, localImag
   return remoteImage;
 };
 
+// Helper to check for active auth token in local storage on page boot
+const hasActiveSupabaseSession = (): boolean => {
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.includes('-auth-token')) {
+        return true;
+      }
+    }
+  } catch (e) {}
+  return false;
+};
+
 export default function App() {
   // Navigation Route State
   // 'landing' | 'signup' | 'login' | 'app' | 'check-email'
-  const [currentRoute, setCurrentRoute] = useState<'landing' | 'signup' | 'login' | 'app' | 'check-email'>('landing');
+  const [currentRoute, setCurrentRoute] = useState<'landing' | 'signup' | 'login' | 'app' | 'check-email'>(() => {
+    if (hasActiveSupabaseSession()) {
+      return 'app';
+    }
+    return 'landing';
+  });
   const [registeredEmail, setRegisteredEmail] = useState('');
   const [activeTab, setActiveTab] = useState<'home' | 'browse' | 'post' | 'orders' | 'profile' | 'admin'>('home');
   const [browseInitialCategory, setBrowseInitialCategory] = useState<string>('all');
@@ -214,6 +232,64 @@ export default function App() {
     return () => {
       subscription?.unsubscribe();
     };
+  }, []);
+
+  // Seamless handling of the Resend /auth/confirm?email=... verification url landing
+  useEffect(() => {
+    const processEmailVerification = async () => {
+      const searchParams = new URLSearchParams(window.location.search);
+      const emailParam = searchParams.get('email');
+      
+      if ((window.location.pathname.includes('/auth/confirm') || window.location.pathname.includes('/confirm')) && emailParam) {
+        console.log('[Resend Landing] Activating user profile for email confirmation:', emailParam);
+        try {
+          showHUD(`Activating account for ${emailParam}...`);
+          
+          // Force activation state to verified
+          let userRecord = await DbService.syncUserSessionByEmail(emailParam, { is_verified: true });
+          
+          // Auto create a profile in the users table if first-time signup configuration
+          if (!userRecord) {
+            userRecord = await DbService.createUserProfile({
+              id: `user_${Date.now()}`,
+              name: emailParam.split('@')[0] || 'Student Partner',
+              phone: '050 ' + Math.floor(1000000 + Math.random() * 9000000).toString(),
+              email: emailParam,
+              department: 'Computer Science',
+              year: 'Year 3',
+              profile_image: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(emailParam.split('@')[0] || 'Student')}`,
+              is_verified: true,
+              earned_ghs: 0,
+              completed_jobs_count: 0
+            });
+          }
+          
+          const verifiedUser: User = {
+            name: userRecord.name || emailParam.split('@')[0] || 'Student Partner',
+            phone: userRecord.phone || '',
+            email: userRecord.email || emailParam,
+            department: userRecord.department || 'Computer Science',
+            year: userRecord.year || 'Year 3',
+            profileImage: getBetterProfileImage(userRecord.profile_image, ''),
+            isVerified: true,
+            earnedGHS: parseFloat(userRecord.earned_ghs || 0),
+            completedJobsCount: parseInt(userRecord.completed_jobs_count || 0)
+          };
+          
+          setUser(verifiedUser);
+          setIsGuestMode(false);
+          setCurrentRoute('app');
+          setActiveTab('home');
+          showHUD(`Thank you, ${verifiedUser.name}! Your email is successfully verified.`);
+          
+          // Purge the address parameters from the visible browser URL bar safely
+          window.history.replaceState({}, document.title, window.location.origin);
+        } catch (err: any) {
+          console.error('[Resend Landing] Direct activation failed:', err);
+        }
+      }
+    };
+    processEmailVerification();
   }, []);
 
   const showHUD = (msg: string) => {
@@ -498,29 +574,10 @@ export default function App() {
         }
       });
       handler.openIframe();
-    } catch (err) {
-      console.warn("Paystack load issue, processing sandbox order placing:", err);
-      // Fallback sandbox scenario for grade checking & offline tests
-      const newOrder: Order = {
-        id: `o_hire_${Date.now()}`,
-        title: service.title,
-        price: service.price,
-        priceType: service.priceType,
-        sellerName: service.sellerName,
-        buyerName: user.name,
-        status: 'in_progress',
-        timestamp: new Date().toISOString(),
-        imageUrl: service.imageUrl,
-        serviceId: service.id
-      };
-
-      DbService.createDirectOrder(newOrder).then(() => {
-        setOrders(prev => [newOrder, ...prev]);
-        setSelectedService(null);
-        setActiveTab('orders');
-        showHUD("Sandbox Escrow Secured! Order registered.");
-        refreshDatabaseFeed();
-      });
+    } catch (err: any) {
+      console.error("Paystack checkout loading failed:", err);
+      showHUD("Paystack checkout fails to load. Please configure NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY in your env.");
+      alert("Paystack secure payment gateway fails to find proper configs. Ensure NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY is set in your environment file.");
     }
   };
 

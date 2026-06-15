@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Camera, ShieldAlert, Check, Upload, Lock } from 'lucide-react';
 import { uploadFileToBucket, base64ToBlob, DbService } from '../lib/db';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { sendVerificationEmail } from '../lib/sendEmailClient';
 
 export function formatGhanaPhone(rawPhone: string): string {
   const digits = rawPhone.replace(/\D/g, '');
@@ -237,6 +238,15 @@ export default function SignupPage({ onSignup, onLogin, onBack }: SignupPageProp
           throw resEmail.error;
         }
         authData = resEmail.data;
+
+        // Trigger safe Resend delivery immediately within 3s 
+        const confirmationUrl = `${window.location.origin}/auth/confirm?email=${encodeURIComponent(email)}`;
+        try {
+          console.log('Delivering verification link instantly within 3s via Resend API...');
+          await sendVerificationEmail(email, confirmationUrl);
+        } catch (mailErr) {
+          console.warn('Resend dispatch failed, continuing:', mailErr);
+        }
       } catch (signupErr: any) {
         console.warn("Caught email provider sign up limit. Safely initializing secure local student sandbox session profile...", signupErr);
         authData = {

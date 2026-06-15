@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, ShieldAlert, Clock, RefreshCw, LogIn } from 'lucide-react';
+import { ArrowLeft, ShieldAlert, Clock, RefreshCw, LogIn, CheckCircle } from 'lucide-react';
 import { DbService } from '../lib/db';
 import { formatGhanaPhone } from './SignupPage';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
@@ -15,11 +15,50 @@ export default function LoginPage({ onLoginSuccess, onSignup, onBack }: LoginPag
   const [email, setEmail] = useState(''); // no pre-fill for senior professional look
   const [password, setPassword] = useState(''); // no pre-fill for senior professional look
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
   // Pending approval screen triggers
   const [showPendingScreen, setShowPendingScreen] = useState(false);
   const [pendingUser, setPendingUser] = useState<any>(null);
+
+  // Password Recovery States
+  const [showResetForm, setShowResetForm] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetEmail.trim()) {
+      setError('Please provide your registered university email');
+      return;
+    }
+    setError('');
+    setSuccessMessage('');
+    setLoading(true);
+    try {
+      const response = await fetch('/api/auth/send-reset', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email: resetEmail.trim() })
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || data.details || 'Unable to register password reset request');
+      }
+
+      setSuccessMessage(data.message || "A secure password recovery link has been dispatched to your student inbox.");
+      setShowResetForm(false);
+      setResetEmail('');
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Could not dispatch password recovery link.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -236,10 +275,10 @@ export default function LoginPage({ onLoginSuccess, onSignup, onBack }: LoginPag
             className="w-full max-w-md bg-white p-6 sm:p-8 rounded-3xl border border-[#E5E7EB] shadow-xl text-[#0D0D0D]"
           >
             <h2 id="login-title" className="text-2xl font-black text-[#0F6E56] mb-1">
-              Welcome Back
+              {showResetForm ? 'Reset Password' : 'Welcome Back'}
             </h2>
             <p className="text-[#6B7280] text-xs mb-6">
-              Access your TTU Market student hub & workspace.
+              {showResetForm ? "We'll send you a secure login recovery link to your inbox." : 'Access your TTU Market student hub & workspace.'}
             </p>
 
             {error && (
@@ -249,69 +288,113 @@ export default function LoginPage({ onLoginSuccess, onSignup, onBack }: LoginPag
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-[10px] font-bold text-[#6B7280] mb-1.5 uppercase tracking-wider">Email Address</label>
-                <input 
-                  id="login-email-input"
-                  type="email" 
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-white border border-[#E5E7EB] rounded-xl px-4 py-3 text-sm text-[#0D0D0D] focus:outline-none focus:border-[#0F6E56] focus:ring-0 transition-all glass-input" 
-                  placeholder="e.g. student@student.ttu.edu.gh"
-                />
+            {successMessage && (
+              <div id="login-success" className="mb-4 p-3 bg-green-50 border border-green-200 text-[#0F6E56] rounded-xl text-xs flex items-center gap-2 text-left leading-relaxed">
+                <CheckCircle className="w-4 h-4 text-[#0F6E56] flex-shrink-0" />
+                <span>{successMessage}</span>
               </div>
+            )}
 
-              <div>
-                <div className="flex justify-between items-center mb-1.5">
-                  <label className="block text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">Password</label>
-                  <a href="#" className="text-[11px] text-[#0F6E56] font-bold hover:underline" onClick={(e) => e.preventDefault()}>Preset Accounts</a>
+            {showResetForm ? (
+              <form onSubmit={handleResetPassword} className="space-y-4 font-sans">
+                <div>
+                  <label className="block text-[10px] font-bold text-[#6B7280] mb-1.5 uppercase tracking-wider">Your Student Email Address</label>
+                  <input 
+                    type="email" 
+                    required
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    className="w-full bg-white border border-[#E5E7EB] rounded-xl px-4 py-3 text-sm text-[#0D0D0D] focus:outline-none focus:border-[#0F6E56] focus:ring-0 transition-all glass-input" 
+                    placeholder="student@student.ttu.edu.gh"
+                  />
                 </div>
-                <input 
-                  id="login-password-input"
-                  type="password" 
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-white border border-[#E5E7EB] rounded-xl px-4 py-3 text-sm text-[#0D0D0D] focus:outline-none focus:border-[#0F6E56] focus:ring-0 transition-all glass-input" 
-                  placeholder="••••••••"
-                />
-              </div>
 
-              {/* DEMO TOOLTIP PRESELLS */}
-              <details className="text-[10px] text-[#6B7280] border border-[#E5E7EB] bg-slate-50/50 p-2.5 rounded-xl cursor-point select-none">
-                <summary className="font-bold hover:text-[#0D0D0D] cursor-pointer outline-none flex items-center gap-1">
-                  <span>💡</span> Demo accounts information
-                </summary>
-                <div className="mt-1.5 space-y-1 bg-white p-2 rounded-lg border text-left">
-                  <p>• Student: <code className="bg-slate-50 px-1 py-0.5 rounded text-[#0F6E56]">student@student.ttu.edu.gh</code> (pwd: <code className="bg-slate-50 px-1 py-0.5 rounded">password123</code>)</p>
-                  <p>• Admin: <code className="bg-slate-50 px-1 py-0.5 rounded text-[#0F6E56]">registrardean@student.ttu.edu.gh</code> (pwd: <code className="bg-slate-50 px-1 py-0.5 rounded">adminpass</code>)</p>
+                <button 
+                  type="submit" 
+                  disabled={loading}
+                  className="w-full bg-[#0F6E56] hover:bg-[#0b5441] text-white py-3.5 rounded-xl font-bold transition-all cursor-pointer mt-4 active:scale-95 shadow-md flex items-center justify-center gap-2"
+                >
+                  {loading ? 'Sending reset link...' : 'Send Recovery Link'}
+                </button>
+
+                <p className="text-center mt-4">
+                  <span 
+                    className="text-xs text-[#0F6E56] font-extrabold hover:underline cursor-pointer"
+                    onClick={() => { setShowResetForm(false); setError(''); setSuccessMessage(''); }}
+                  >
+                    Back to Sign In
+                  </span>
+                </p>
+              </form>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-[#6B7280] mb-1.5 uppercase tracking-wider">Email Address</label>
+                  <input 
+                    id="login-email-input"
+                    type="email" 
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full bg-white border border-[#E5E7EB] rounded-xl px-4 py-3 text-sm text-[#0D0D0D] focus:outline-none focus:border-[#0F6E56] focus:ring-0 transition-all glass-input" 
+                    placeholder="e.g. student@student.ttu.edu.gh"
+                  />
                 </div>
-              </details>
 
-              <button 
-                id="login-submit-btn"
-                type="submit" 
-                disabled={loading}
-                className="w-full bg-[#0F6E56] hover:bg-[#0b5441] text-white py-3.5 rounded-xl font-bold transition-all cursor-pointer mt-4 active:scale-95 shadow-md flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <>
-                    <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span>Authenticating...</span>
-                  </>
-                ) : (
-                  <>
-                    <LogIn className="w-4 h-4" />
-                    <span>Sign In</span>
-                  </>
-                )}
-              </button>
-            </form>
+                <div>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="block text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">Password</label>
+                    <div className="flex gap-2">
+                      <a href="#" className="text-[11px] text-[#0F6E56] font-extrabold hover:underline" onClick={(e) => { e.preventDefault(); setShowResetForm(true); setError(''); setSuccessMessage(''); }}>Forgot?</a>
+                      <span className="text-gray-300 text-[11px]">•</span>
+                      <a href="#" className="text-[11px] text-[#6B7280] font-bold hover:underline" onClick={(e) => { e.preventDefault(); setEmail('student@student.ttu.edu.gh'); setPassword('password123'); }}>Autofill Demo</a>
+                    </div>
+                  </div>
+                  <input 
+                    id="login-password-input"
+                    type="password" 
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full bg-white border border-[#E5E7EB] rounded-xl px-4 py-3 text-sm text-[#0D0D0D] focus:outline-none focus:border-[#0F6E56] focus:ring-0 transition-all glass-input" 
+                    placeholder="••••••••"
+                  />
+                </div>
+
+                {/* DEMO TOOLTIP PRESELLS */}
+                <details className="text-[10px] text-[#6B7280] border border-[#E5E7EB] bg-slate-50/50 p-2.5 rounded-xl cursor-point select-none">
+                  <summary className="font-bold hover:text-[#0D0D0D] cursor-pointer outline-none flex items-center gap-1">
+                    <span>💡</span> Demo accounts information
+                  </summary>
+                  <div className="mt-1.5 space-y-1 bg-white p-2 rounded-lg border text-left">
+                    <p>• Student: <code className="bg-slate-50 px-1 py-0.5 rounded text-[#0F6E56]">student@student.ttu.edu.gh</code> (pwd: <code className="bg-slate-50 px-1 py-0.5 rounded">password123</code>)</p>
+                    <p>• Admin: <code className="bg-slate-50 px-1 py-0.5 rounded text-[#0F6E56]">registrardean@student.ttu.edu.gh</code> (pwd: <code className="bg-slate-50 px-1 py-0.5 rounded">adminpass</code>)</p>
+                  </div>
+                </details>
+
+                <button 
+                  id="login-submit-btn"
+                  type="submit" 
+                  disabled={loading}
+                  className="w-full bg-[#0F6E56] hover:bg-[#0b5441] text-white py-3.5 rounded-xl font-bold transition-all cursor-pointer mt-4 active:scale-95 shadow-md flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>Authenticating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <LogIn className="w-4 h-4" />
+                      <span>Sign In</span>
+                    </>
+                  )}
+                </button>
+              </form>
+            )}
 
             <p className="text-center mt-6 text-xs text-[#6B7280]">
               New to the market?{' '}
@@ -366,29 +449,6 @@ export default function LoginPage({ onLoginSuccess, onSignup, onBack }: LoginPag
             <div className="space-y-2.5">
               <button 
                 type="button"
-                onClick={async () => {
-                  if (!pendingUser) return;
-                  setLoading(true);
-                  try {
-                    // Update user profile in database to verified instantly
-                    await DbService.syncUserSessionById(pendingUser.id, { is_verified: true });
-                    pendingUser.is_verified = true;
-                    onLoginSuccess(pendingUser.email || pendingUser.phone, { ...pendingUser, is_verified: true });
-                  } catch (e) {
-                    console.warn("Bypass verification sync failed, continuing locally:", e);
-                    onLoginSuccess(pendingUser.email || pendingUser.phone, { ...pendingUser, is_verified: true });
-                  } finally {
-                    setLoading(false);
-                  }
-                }}
-                disabled={loading}
-                className="w-full bg-[#10B981] text-white py-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-[#059669] active:scale-95 cursor-pointer shadow-md transition-all"
-              >
-                <span>⚡ Instant Verify & Proceed</span>
-              </button>
-
-              <button 
-                type="button"
                 onClick={handleRefreshVerificationStatus}
                 disabled={loading}
                 className="w-full bg-[#0F6E56] text-white py-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-[#0b5441] active:scale-95 cursor-pointer shadow-md"
@@ -408,16 +468,6 @@ export default function LoginPage({ onLoginSuccess, onSignup, onBack }: LoginPag
               >
                 Switch to Admin Account
               </button>
-            </div>
-
-            <div className="mt-6 p-4 bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl text-left text-xs space-y-1.5 leading-relaxed">
-              <p className="font-semibold text-center text-amber-800">💡 Local Redirect (localhost:3000) Notice</p>
-              <p className="text-slate-600 text-[11px]">
-                If your Supabase confirmation link loaded a broken <code className="font-mono bg-amber-100 px-1 rounded text-red-600">localhost:3000</code> page, it means your Supabase project's **Site URL** is still set to default. 
-              </p>
-              <p className="text-slate-600 text-[11px] font-medium">
-                Use the green <strong>"Instant Verify"</strong> button above to bypass this screen and enter the app instantly!
-              </p>
             </div>
           </motion.div>
         )}
